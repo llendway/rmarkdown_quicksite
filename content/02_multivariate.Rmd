@@ -1,0 +1,236 @@
+---
+title: 'Working with more than one variable: \n multivariate relationships'
+output:   
+  html_document: 
+    toc: true
+    toc_float: true
+    df_print: paged
+    code_download: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(error = TRUE)
+```
+
+## Reminder: Libraries!
+
+As always, we start our file with a code chunk that loads the libraries we will use throughout this document. Install any new libraries before running the code.
+
+```{r libraries, message=FALSE}
+library(tidyverse) #used for visualization, summarization, and basic wrangling
+library(ggridges) #New! Used for making density ridge plots
+library(fueleconomy) #for the dataset
+```
+
+
+
+<div class="alert alert-success">
+  <strong>GOAL:</strong>
+
+Expand on the previous section to investigate where variability in our **response variable** is coming from. We noticed that there was variability across vehicles' highway mpg but didn't investigate *why*. Are there other variables that might explain some of the variation? Which variables might have stronger or weaker relationships? How can we visualize these relationships?
+
+Specifically, we will investigate relationship between:
+
+**Response/dependent/outcome variable**: the variable whose variability we would like to explain (eg. `hwy`)
+
+**Predictors/explanatory variables/independent variables/covariates**: variables that might explain some of the variability in the response (eg. `displ`)
+
+We will construct visualizations that allow us to examine:
+
+* Relationship *trends* (form and direction of the relationship, eg. positive and linear) or differences across groups.
+* Relationship *strength* (degree of variability from the trend or how tight the points are around the envisioned trend)    
+
+* *Outliers* in the relationship
+
+By the end of these notes and activities, you should have a general idea for how to do the following tasks.
+
+* Create a scatterplot to examine and relationship between two quantitative variables.  
+* Describe the from, strength, and direction that you observe in a scatterplot.  
+* Compute the correlation between two quantitative variables.  
+* Create a side-by-side boxplot to examine the relationship between a categorical and quantitative variable and describe any meaningful differences among the groups.  
+* Create a ridge plot to examine the relationship between a categorical and quantitative variable and describe any meaningful differences among the groups.  
+* Understand when to use more advanced methods, like coloring a by a categorical variable, adding transparency, and faceting.
+
+</div>
+
+## The data
+
+We will again use a subset of the `vehicles` data from the `fueleconomy` dataset throughout. For a reminder of what is all in the dataset, `?vehicles` in the console.
+
+```{r}
+vehicles_2015 <- vehicles %>% filter(year == 2015)
+```
+
+## Quantitative vs. quantitative: scatterplots 
+
+Examine the following plot that shows the relationship between `hwy` and `displ` (engine displacement). Comment on:
+        
+* the form of the relationship (line/curve/other)
+* the strength of the relationship (weak/moderate/strong)
+* the direction of the relationship (positive/negative)
+* outliers 
+
+```{r}
+ggplot(data = vehicles_2015) +
+  geom_point(aes(x = displ, y = hwy)) +
+  labs(x = "Engine Displacement", y = "Highway MPG") +
+  theme_minimal()
+```
+
+Notice that we got a warning letting us know that one data point was removed. It was removed because it had a missing value for `displ`. The car with a missing value is the Nissan Leaf. It has no engine displacement because it is an electric vehicle. There are a variety of ways we could try to fix this problem, but for now, we will create a new dataset that excludes any row with missing values (it turns out the Leaf is the only one with missing values anyways).
+
+```{r}
+vehicles_2015_no_na <- vehicles_2015 %>% drop_na()
+```
+
+```{r}
+ggplot(data = vehicles_2015_no_na) +
+  geom_point(aes(x = displ, y = hwy)) +
+  labs(x = "Engine Displacement", y = "Highway MPG") +
+  theme_minimal()
+```
+
+The strength of the *linear* relationship between two quantitative variables is measured by the **correlation coefficient**. The code below will compute this.
+
+```{r}
+vehicles_2015_no_na %>% 
+  summarize(corr = cor(displ, hwy))
+```
+
+Notice if I tried to do this with the dataset with a missing value, it returns a missing value, `NA`. We can add an argument to the function to compute it for all pairs with no missing values.
+
+```{r}
+vehicles_2015 %>% 
+  summarize(corr = cor(displ, hwy),
+            corr2 = cor(displ, hwy, use = "pairwise.complete.obs"))
+```
+
+<div class="alert alert-info">
+  <strong>YOUR TURN!</strong> 
+
+1. Create a scatterplot of *hwy* vs. *cty* miles per gallon. How would you describe the relationship?  
+2. Compute the correlation between *hwy* and *cty*.
+
+</div>
+
+### More complex scatterplots
+
+We can jitter the points, adding a little bit of noise to each point, in order to see if they are overplotted. Do you prefer this plot?
+
+```{r}
+ggplot(data = vehicles_2015_no_na) +
+  geom_jitter(aes(x = displ, y = hwy)) + #noice the code change here
+  labs(x = "Engine Displacement", y = "Highway MPG") +
+  theme_minimal()
+```
+
+We can add an `alpha` argument, which controls the transparency of points. This can help if points are overplotted or if there is an overwhelming amount of data. 
+
+```{r}
+ggplot(data = vehicles_2015_no_na) +
+  geom_point(aes(x = displ, y = hwy), alpha = .2) +
+  labs(x = "Engine Displacement", y = "Highway MPG") +
+  theme_minimal()
+```
+
+We can make the points smaller in size. This can also help when there is a large amount of data. 
+
+```{r}
+ggplot(data = vehicles_2015_no_na) +
+  geom_point(aes(x = displ, y = hwy), size = .5) +
+  labs(x = "Engine Displacement", y = "Highway MPG") +
+  theme_minimal()
+```
+
+With large datasets, you may want to use a combination of these options.
+
+```{r}
+ggplot(data = vehicles %>% drop_na(displ)) +
+  geom_jitter(aes(x = displ, y = hwy), size = .5, alpha = .2) +
+  labs(x = "Engine Displacement", y = "Highway MPG") +
+  theme_minimal()
+```
+
+We also might be interested in the affect of a third variable while still wanting to look at the relationship between the two quantitative variables. If the third variable is categorical, we have a couple options. 
+
+We can color the points by that variable.
+
+```{r}
+ggplot(data = vehicles_2015_no_na) +
+  geom_jitter(aes(x = displ, y = hwy, color = drive)) +
+  labs(x = "Engine Displacement", y = "Highway MPG", color = "Drive") +
+  theme_minimal()
+```
+
+Or we can facet by that variable.
+
+```{r}
+ggplot(data = vehicles_2015_no_na) +
+  geom_jitter(aes(x = displ, y = hwy)) +
+  facet_wrap(vars(drive)) +
+  labs(x = "Engine Displacement", y = "Highway MPG") +
+  theme_minimal()
+```
+
+<div class="alert alert-info">
+  <strong>YOUR TURN!</strong> 
+
+Create 2-3 more complex plots that examine how some variables we have not investigated yet affect *hwy*. 
+
+</div>
+
+## Quantitative vs. categorical: side-by-side boxplots and density "ridge" plots
+
+Examine the side-by-side boxplot below. What are some observations you would make? What does the boxplot show? What do each of the lines on the box represent? What information is missing?
+
+```{r}
+ggplot(data = vehicles_2015_no_na) +
+  geom_boxplot(aes(x = drive, y = hwy)) +
+  labs(x = "Drive", y = "Highway MPG") +
+  theme_minimal()
+```
+
+We could also examine this relationship using density plots. Notice that the x and y axis are the opposite of what they were in the boxplot. What do you observe here? Anything you didn't observe in the boxplot?
+
+```{r}
+ggplot(data = vehicles_2015_no_na) +
+  geom_density_ridges(aes(x = hwy, y = drive)) +
+  labs(x = "Highway MPG", y = "Drive") +
+  theme_minimal()
+```
+
+We may also want to compute some statistics about the response variable for each level of the categorical variable. We can use the `group_by()` function along with `summarize()` to do that. Explain what the following code does.
+
+```{r}
+vehicles_2015_no_na %>% 
+  group_by(drive) %>% 
+  summarize(avg_hwy = mean(hwy),
+            sd_hwy = sd(hwy),
+            med_hwy = median(hwy),
+            Q3 = quantile(hwy, probs = .75))
+```
+
+<div class="alert alert-info">
+  <strong>YOUR TURN!</strong> 
+
+  1. What are some pros and cons of the different methods for examining the relationship between a categorical and a quantitative variable? When would you use the different methods? 
+  2. Examine the relationship between `hwy` and another categorical variable in the dataset. Try some of the different methods we used above. Calculate some statistics (means, medians, sd, etc.) to describe how highway mpg differs across the categorical variable.
+  3. Try using the large `vehicles` dataset with `hwy` as the response. Use `year` as a categorical variable. When you do that, you will need to use `factor(year)` so that R treats it as a categorical variable rather than a number. Answer the same questions as above.
+
+## A helpful table
+
+This list is definitely not exhaustive but should help you make a good choice about which graphs will be useful in which scenarios.
+
+For what? | Graph |`ggplot` `geom` hints
+------------- | ------------- | --------------
+Distribution of quantitative | Histogram | `geom_histogram(aes(x = quantitative variable))` 
+Distribution of quantitative | Density plot | `geom_density(aes(x = quantitative variable))` 
+Distribution of categorical | Barplot | `geom_bar(aes(x = categorical variable))`  
+Distribution of categorical (if you already know the counts) | Barplot | `geom_col(aes(x = categorical variable, y = count variable))`  
+Relationship between quant. response and quant. predictor | Scatterplot| `geom_point(aes(x = quant. predictor, y = quant. response))`   
+Relationship between quant. response and cat. predictor | side-by-side boxplots | `geom_boxplot(aes(x = cat. predictor, y = quant. response))`  
+Relationship between quant. response and cat. predictor | density ridge plots | `geom_density_ridges(aes(x = quant. response, y = cat. predictor))`
+
+## So many more plots! 
+
+We have focused on the plots we will need most to better understand the data that we will use to create linear models. We will continue to use these plots, and we will add to them as needed. I also encourage you to explore more on your own. The `esquisse` package is especially helpful when you are first starting your explorations.
